@@ -1,0 +1,22 @@
+# Core deep learning
+torch==1.11.0
+torchvision==0.12.0
+
+# Numerical / data
+numpy
+pandas
+Pillow
+
+# Optimal transport (CHA module)
+POT
+
+# Text feature extraction (Bio_ClinicalBERT)
+transformers
+
+# NLP preprocessing (sentence / phrase extraction)
+nltk
+
+# Utilities
+tqdm
+
+# Note: Java is required by pycocoevalcap (METEOR / Stanford tokenizer jars).

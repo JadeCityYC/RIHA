@@ -1,0 +1,50 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter / IPython
+.ipynb_checkpoints
+profile_default/
+
+# Editors
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# ------------------------------------------------------------------
+# Project-specific: data, extracted features, checkpoints, outputs
+# ------------------------------------------------------------------
+# Raw datasets
+data/iu_xray/
+data/mimic_cxr/
+
+# Pre-extracted text features (large, regenerate with text_extractor.py)
+data/features/
+
+# Pretrained backbone weights
+pretrained/
+
+# Training outputs
+results/
+records/
+
+# Visualization dumps
+attention_maps/
+attention_visualizations/
