@@ -250,15 +250,15 @@ class PositionalEncoding(nn.Module):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        # 位置编码矩阵
+        # Positional encoding matrix
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len).unsqueeze(1).float()
 
-        # 引入可学习的缩放参数
-        self.alpha = nn.Parameter(torch.ones(1) * scale_factor)  # 位置编码整体缩放
-        self.beta = nn.Parameter(torch.ones(d_model))  # 维度级别的缩放
+        # Introduce learnable scaling parameters
+        self.alpha = nn.Parameter(torch.ones(1) * scale_factor)  # Global positional encoding scale
+        self.beta = nn.Parameter(torch.ones(d_model))  # Per-dimension scaling
 
-        # 频率调整（更平滑的频率衰减）
+        # Frequency adjustment (smoother frequency decay)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / (d_model * 1.5)))
 
         pe[:, 0::2] = torch.sin(position * div_term)

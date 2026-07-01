@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-# 导入multilevel_visual_extractor替代原来的visual_extractor
+# Import multilevel_visual_extractor to replace the original visual_extractor
 #from modules.visual_extractor_vit import VisualFeatureExtractor
 from modules.multilevel_visual_extractor import VisualFeatureExtractor
 from modules.encoder_decoder import EncoderDecoder
@@ -15,26 +15,26 @@ class R2GenModel(nn.Module):
         self.args = args
         self.tokenizer = tokenizer
         
-        # 使用新的VisualFeatureExtractor替代原来的VisualExtractor
+        # Use the new VisualFeatureExtractor to replace the original VisualExtractor
         self.visual_extractor = VisualFeatureExtractor(args)
         self.encoder_decoder = EncoderDecoder(args, tokenizer)
         
-        # 根据数据集选择前向传播函数
+        # Select the forward function based on the dataset
         if args.dataset_name == 'iu_xray':
             self.forward = self.forward_iu_xray
         else:
             self.forward = self.forward_mimic_cxr
             
-        # 如果启用了对齐损失，创建对齐模块
+        # If alignment loss is enabled, create the alignment module
         if getattr(args, 'use_alignment_loss', False):
-            # 设置文本特征维度
+            # Set the text feature dimension
             text_dim = getattr(args, 'text_feature_dim', 768)
             
-            # 创建对齐模块
+            # Create the alignment module
             self.alignment_module = MultiLevelAlignmentModule(
-                visual_dims=(2048, 2048, 2048),  # 视觉特征维度
-                text_dims=(text_dim, text_dim, text_dim),  # 文本特征维度
-                projection_dim=getattr(args, 'projection_dim', 512),  # 投影维度
+                visual_dims=(2048, 2048, 2048),  # visual feature dimensions
+                text_dims=(text_dim, text_dim, text_dim),  # text feature dimensions
+                projection_dim=getattr(args, 'projection_dim', 512),  # projection dimension
                 alpha=getattr(args, 'low_level_weight', 0.3),
                 beta=getattr(args, 'mid_level_weight', 0.4),
                 gamma=getattr(args, 'high_level_weight', 0.3),
@@ -43,11 +43,11 @@ class R2GenModel(nn.Module):
                 ot_tau=getattr(args, 'ot_tau', 0.5)
             )
             
-            # 文本特征属性（将在set_text_features中设置）
+            # Text feature attribute (will be set in set_text_features)
             self.text_features = None
         
     def set_text_features(self, text_features):
-        """设置用于对齐损失计算的文本特征"""
+        """Set the text features used for alignment loss computation."""
         self.text_features = text_features
 
     def __str__(self):
@@ -56,23 +56,23 @@ class R2GenModel(nn.Module):
         return super().__str__() + '\nTrainable parameters: {}'.format(params)
 
     def forward_iu_xray(self, images, targets=None, mode='train', return_features=False):
-        # 获取第一张和第二张图像的多级别特征
+        # Extract multi-level features for the first and second images
         features_0 = self.visual_extractor(images[:, 0])
         features_1 = self.visual_extractor(images[:, 1])
         
-        # 使用融合后的特征
+        # Use the fused features
         fused_feats_0 = features_0['fused_feats']  # [B, 49, 2048]
         fused_feats_1 = features_1['fused_feats']  # [B, 49, 2048]
-        
-        # 合并两张图像的特征
+
+        # Concatenate features from both images
         att_feats = torch.cat((fused_feats_0, fused_feats_1), dim=1)  # [B, 98, 2048]
-        
-        # 对于fc_feats，我们可以使用每张图像特征的平均值
+
+        # For fc_feats, use the mean of each image's features
         fc_feats_0 = torch.mean(fused_feats_0, dim=1)  # [B, 2048]
         fc_feats_1 = torch.mean(fused_feats_1, dim=1)  # [B, 2048]
         fc_feats = torch.cat((fc_feats_0, fc_feats_1), dim=1)  # [B, 4096]
-        
-        # 合并多级别特征用于对齐计算
+
+        # Combine multi-level features for alignment computation
         combined_features = {
             'low_level_feats': torch.cat((features_0['low_level_feats'], features_1['low_level_feats']), dim=1),
             'mid_level_feats': torch.cat((features_0['mid_level_feats'], features_1['mid_level_feats']), dim=1),
@@ -87,20 +87,20 @@ class R2GenModel(nn.Module):
             output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')
 
         else:
-            raise ValueError(f"不支持的模式: {mode}")
-        
+            raise ValueError(f"Unsupported mode: {mode}")
+
         if return_features:
             return output, combined_features
         return output
 
     def forward_mimic_cxr(self, images, targets=None, mode='train', return_features=False):
-        # 获取图像的多级别特征
+        # Extract multi-level features from the image
         features = self.visual_extractor(images)
-        
-        # 使用融合后的特征
+
+        # Use the fused features
         att_feats = features['fused_feats']  # [B, 49, 2048]
-        
-        # 对于fc_feats，我们使用特征的平均值
+
+        # For fc_feats, use the mean of the features
         fc_feats = torch.mean(att_feats, dim=1)  # [B, 2048]
         
         if mode == 'train':
@@ -108,8 +108,8 @@ class R2GenModel(nn.Module):
         elif mode == 'sample':
             output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')
         else:
-            raise ValueError(f"不支持的模式: {mode}")
-        
+            raise ValueError(f"Unsupported mode: {mode}")
+
         if return_features:
             return output, features
         return output

@@ -85,33 +85,33 @@ def parse_agrs():
     parser.add_argument('--seed', type=int, default=9233, help='.')
     parser.add_argument('--resume', type=str, help='whether to resume the training from existing checkpoints.')
 
-    # 对齐损失相关参数
+    # Alignment loss related parameters
     parser.add_argument('--use_alignment_loss', action='store_true', default=False,
-                        help='是否使用多级别特征对齐损失')
-    parser.add_argument('--alignment_weight', type=float, default=0.5, 
-                        help='对齐损失的权重系数')
-    parser.add_argument('--text_feature_dim', type=int, default=768, 
-                        help='文本特征的维度')
-    parser.add_argument('--projection_dim', type=int, default=512, 
-                        help='特征投影的目标维度')
-    parser.add_argument('--low_level_weight', type=float, default=1.0, 
-                        help='低级别特征对齐的权重')
-    parser.add_argument('--mid_level_weight', type=float, default=0.0, 
-                        help='中级别特征对齐的权重')
-    parser.add_argument('--high_level_weight', type=float, default=0.0, 
-                        help='高级别特征对齐的权重')
+                        help='whether to use multi-level feature alignment loss')
+    parser.add_argument('--alignment_weight', type=float, default=0.5,
+                        help='weight coefficient for alignment loss')
+    parser.add_argument('--text_feature_dim', type=int, default=768,
+                        help='dimension of text features')
+    parser.add_argument('--projection_dim', type=int, default=512,
+                        help='target dimension for feature projection')
+    parser.add_argument('--low_level_weight', type=float, default=1.0,
+                        help='weight for low-level feature alignment')
+    parser.add_argument('--mid_level_weight', type=float, default=0.0,
+                        help='weight for mid-level feature alignment')
+    parser.add_argument('--high_level_weight', type=float, default=0.0,
+                        help='weight for high-level feature alignment')
     parser.add_argument('--paragraph_features_path', type=str, default='data/features/paragraph_features.json',
-                        help='段落特征文件路径')
+                        help='path to paragraph features file')
     parser.add_argument('--sentence_features_path', type=str, default='data/features/sentence_features.json',
-                        help='句子特征文件路径')
+                        help='path to sentence features file')
     parser.add_argument('--word_features_path', type=str, default='data/features/word_features.json',
-                        help='单词特征文件路径')
-    parser.add_argument('--ot_impl', type=str, default='pot-uot-l2', 
-                        help='最优传输实现方法')
-    parser.add_argument('--ot_reg', type=float, default=0.1, 
-                        help='OT正则化参数')
-    parser.add_argument('--ot_tau', type=float, default=0.5, 
-                        help='UOT参数')
+                        help='path to word features file')
+    parser.add_argument('--ot_impl', type=str, default='pot-uot-l2',
+                        help='optimal transport implementation method')
+    parser.add_argument('--ot_reg', type=float, default=0.1,
+                        help='OT regularization parameter')
+    parser.add_argument('--ot_tau', type=float, default=0.5,
+                        help='UOT parameter')
 
     args = parser.parse_args()
     return args
@@ -138,28 +138,28 @@ def main():
     # build model architecture
     model = R2GenModel(args, tokenizer)
 
-    # 如果启用了对齐损失，加载文本特征
+    # If alignment loss is enabled, load text features
     if args.use_alignment_loss:
-        print(f"启用多级别特征对齐损失，权重: {args.alignment_weight}")
-        
-        # 加载预先提取的文本特征
-        print("加载文本特征...")
-        
-        # 加载段落特征
+        print(f"Multi-level feature alignment loss enabled, weight: {args.alignment_weight}")
+
+        # Load pre-extracted text features
+        print("Loading text features...")
+
+        # Load paragraph features
         with open(args.paragraph_features_path, 'r') as f:
             paragraph_features = json.load(f)
-        
-        # 加载句子特征
+
+        # Load sentence features
         with open(args.sentence_features_path, 'r') as f:
             sentence_features = json.load(f)
-        
-        # 加载单词特征
+
+        # Load word features
         with open(args.word_features_path, 'r') as f:
             word_features = json.load(f)
-        
-        # 设置模型的文本特征
+
+        # Set text features for the model
         model.set_text_features((paragraph_features, sentence_features, word_features))
-        print(f"成功加载文本特征: {len(paragraph_features)} 段落, {len(sentence_features)} 句子, {len(word_features)} 单词")
+        print(f"Text features loaded successfully: {len(paragraph_features)} paragraphs, {len(sentence_features)} sentences, {len(word_features)} words")
 
     # get function handles of loss and metrics
     criterion = compute_loss

@@ -8,8 +8,8 @@ import copy
 import os
 import sys
 
-# 下载NLTK资源
-print("正在下载NLTK资源...")
+# Download NLTK resources
+print("Downloading NLTK resources...")
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('maxent_ne_chunker')
@@ -17,140 +17,140 @@ nltk.download('words')
 
 def extract_subject_object(sentence):
     """
-    从句子中提取主语和宾语词组
-    
-    参数:
-    sentence (str): 输入的句子
-    
-    返回:
-    list: 提取的主语和宾语词组列表
+    Extract subject and object phrases from a sentence
+
+    Parameters:
+    sentence (str): input sentence
+
+    Returns:
+    list: list of extracted subject and object phrases
     """
     if not sentence or not isinstance(sentence, str):
-        print(f"警告: 无效的句子输入: {sentence}")
+        print(f"Warning: invalid sentence input: {sentence}")
         return []
-        
+
     try:
-        # 分词和词性标注
+        # Tokenize and POS-tag
         tokens = word_tokenize(sentence)
         tagged = pos_tag(tokens)
-        
-        # 定义简化的语法规则 - 只识别名词短语
+
+        # Define simplified grammar rules - only recognize noun phrases
         grammar = """
 NP: {<DT>?<JJ.*>*<NN.*>+}
     {<PRP>}
 """
-        
-        # 创建解析器
+
+        # Create parser
         parser = RegexpParser(grammar)
-        
-        # 解析句子
+
+        # Parse sentence
         parsed = parser.parse(tagged)
-        
-        # 找出主语和宾语（名词短语）
+
+        # Find subjects and objects (noun phrases)
         noun_phrases = []
-        
-        # 遍历解析树，提取名词短语
+
+        # Traverse parse tree, extract noun phrases
         for subtree in parsed.subtrees():
-            if subtree.label() == 'NP':  # 名词短语（可能是主语或宾语）
+            if subtree.label() == 'NP':  # noun phrase (may be subject or object)
                 phrase = ' '.join(word for word, tag in subtree.leaves())
                 noun_phrases.append(phrase)
-        
+
         return noun_phrases
     except Exception as e:
-        print(f"提取词组时出错: {e}")
+        print(f"Error extracting phrases: {e}")
         return []
 
 def process_annotation_json(input_json_path, output_json_path):
     """
-    处理输入的annotation_sentence.json并保存为annotation_word.json
+    Process input annotation_sentence.json and save as annotation_word.json
     """
     try:
-        # 读取输入的JSON文件
-        print(f"正在读取 {input_json_path}...")
+        # Read input JSON file
+        print(f"Reading {input_json_path}...")
         with open(input_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
-        # 创建输出的JSON结构（复制原始结构）
+
+        # Create output JSON structure (copy original structure)
         output_data = copy.deepcopy(data)
-        
+
         total_items = sum(len(split_data) for split_name, split_data in data.items())
         processed_items = 0
-        
-        # 遍历所有数据条目
+
+        # Iterate over all data entries
         for split_name, split_data in data.items():
-            print(f"处理数据集 '{split_name}' 中的 {len(split_data)} 个条目...")
-            
+            print(f"Processing {len(split_data)} entries in dataset '{split_name}'...")
+
             for i, item in enumerate(split_data):
-                # 显示进度
+                # Show progress
                 processed_items += 1
                 if processed_items % 100 == 0 or processed_items == total_items:
-                    print(f"进度: {processed_items}/{total_items} ({processed_items/total_items*100:.1f}%)")
-                
-                # 新建一个列表用于存储每个句子提取的词组
+                    print(f"Progress: {processed_items}/{total_items} ({processed_items/total_items*100:.1f}%)")
+
+                # Create a list to store extracted phrases for each sentence
                 word_phrases = []
-                
-                # 确保'report_sentences'字段存在
+
+                # Ensure 'report_sentences' field exists
                 if 'report_sentences' not in item:
-                    print(f"警告: 条目 {item.get('id', i)} 中没有 'report_sentences' 字段，跳过此条目")
+                    print(f"Warning: entry {item.get('id', i)} has no 'report_sentences' field, skipping")
                     continue
-                
-                # 处理每个句子
+
+                # Process each sentence
                 for sentence in item['report_sentences']:
-                    # 提取主语和宾语
+                    # Extract subjects and objects
                     phrases = extract_subject_object(sentence)
-                    # 将提取的词组添加到列表中
+                    # Add extracted phrases to the list
                     word_phrases.extend(phrases)
-                
-                # 将原始的'report_sentences'替换为提取的词组
+
+                # Replace original 'report_sentences' with extracted phrases
                 output_data[split_name][i]['report_words'] = word_phrases
-                # 删除原始的'report_sentences'字段
+                # Delete original 'report_sentences' field
                 if 'report_sentences' in output_data[split_name][i]:
                     del output_data[split_name][i]['report_sentences']
-        
-        # 保存输出的JSON文件
-        print(f"正在保存结果到 {output_json_path}...")
+
+        # Save output JSON file
+        print(f"Saving results to {output_json_path}...")
         with open(output_json_path, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2)
-        
+
         return output_data
     except Exception as e:
-        print(f"处理JSON文件时出错: {e}")
+        print(f"Error processing JSON file: {e}")
         import traceback
         traceback.print_exc()
         return None
 
 def main():
     """
-    主函数
+    Main function
     """
     parser = argparse.ArgumentParser(
-        description='从 annotation_sentence.json 中提取词组，生成 annotation_phrase.json')
+        description='Extract phrases from annotation_sentence.json and generate annotation_phrase.json')
     parser.add_argument('--input', dest='input_json_path',
                         default='data/iu_xray/annotation_sentence.json',
-                        help='输入的 annotation_sentence.json 路径')
+                        help='path to input annotation_sentence.json')
     parser.add_argument('--output', dest='output_json_path',
                         default='data/iu_xray/annotation_phrase.json',
-                        help='输出的 annotation_phrase.json 路径')
+                        help='path to output annotation_phrase.json')
     args = parser.parse_args()
     input_json_path = args.input_json_path
     output_json_path = args.output_json_path
 
-    # 检查输入文件是否存在
+    # Check if input file exists
     if not os.path.exists(input_json_path):
-        print(f"错误: 找不到输入文件 '{input_json_path}'")
-        print("请确保文件路径正确，或修改代码中的文件路径。")
+        print(f"Error: input file '{input_json_path}' not found")
+        print("Please verify the file path is correct or update the path in the code.")
         return
-    
-    # 处理JSON文件
-    output_data = process_annotation_json(input_json_path, output_json_path)
-    
-    if output_data:
-        print(f"处理完成。结果已保存到 {output_json_path}")
 
-# 测试用例
+    # Process JSON file
+    output_data = process_annotation_json(input_json_path, output_json_path)
+
+    if output_data:
+        print(f"Processing complete. Results saved to {output_json_path}")
+
+# Test cases
 def test_extract():
     """
-    测试词组提取功能
+    Test phrase extraction functionality
     """
     test_sentences = [
         "The heart size and pulmonary vascularity appear within normal limits.",
@@ -159,16 +159,16 @@ def test_extract():
         "No pneumothorax or pleural effusion is seen.",
         "Degenerative changes are present in the spine."
     ]
-    
-    print("测试主语和宾语提取功能:")
+
+    print("Testing subject and object extraction:")
     for sentence in test_sentences:
         phrases = extract_subject_object(sentence)
-        print(f"\n原句: {sentence}")
-        print(f"提取的主语和宾语: {phrases}")
+        print(f"\nOriginal sentence: {sentence}")
+        print(f"Extracted subjects and objects: {phrases}")
 
 if __name__ == "__main__":
-    # 取消注释以下行来测试词组提取功能
+    # Uncomment the following line to test phrase extraction
     #test_extract()
-    
-    # 运行主程序
+
+    # Run main program
     main()

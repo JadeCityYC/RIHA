@@ -190,12 +190,12 @@ class Trainer(BaseTrainer):
 
     def _train_epoch(self, epoch):
         """
-        训练一个轮次，支持多级别特征对齐
+        Train one epoch with support for multi-level feature alignment.
         """
         train_loss = 0
         self.model.train()
         
-        # 用于记录各种损失的字典
+        # Dictionary for accumulating various losses
         loss_details_sum = {
             'lm_loss': 0.0,
             'alignment_loss': 0.0,
@@ -207,61 +207,61 @@ class Trainer(BaseTrainer):
         for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
             images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), reports_masks.to(self.device)
             
-            # 获取当前批次的report_ids (用于对齐损失)
-            batch_report_ids = images_id  # 假设images_id就是报告ID
+            # Get report_ids for the current batch (used for alignment loss)
+            batch_report_ids = images_id  # Assume images_id is the report ID
             #pdb.set_trace()
-            
-            # 检查是否使用对齐损失，并相应调整前向传播
+
+            # Check whether to use alignment loss and adjust the forward pass accordingly
             use_alignment = (hasattr(self.model, 'text_features') and 
                             hasattr(self.model, 'alignment_module') and 
                             self.model.text_features is not None and
                             getattr(self.args, 'use_alignment_loss', True))
             
             if use_alignment:
-                # 带视觉特征的前向传播
+                # Forward pass with visual features
                 output, visual_features = self.model(images, reports_ids, mode='train', return_features=True)
                 
-                # 获取对齐所需的组件
+                # Retrieve the components needed for alignment
                 text_features = self.model.text_features
                 alignment_module = self.model.alignment_module
                 alignment_weight = getattr(self.args, 'alignment_weight', 0.0)
                 
-                # 计算损失，包括对齐损失
+                # Compute loss including alignment loss
                 loss, loss_details = self.criterion(
                     output, reports_ids, reports_masks,
                     visual_features, text_features, batch_report_ids,
                     alignment_module, alignment_weight
                 )
                 
-                # 更新损失详情的累加值
+                # Accumulate loss detail values
                 for k, v in loss_details.items():
                     if k in loss_details_sum:
                         loss_details_sum[k] += v
             else:
-                # 常规前向传播（不带视觉特征返回）
+                # Standard forward pass (without returning visual features)
                 output = self.model(images, reports_ids, mode='train')
-                
-                # 计算常规损失
+
+                # Compute standard loss
                 loss, _ = self.criterion(output, reports_ids, reports_masks)
             
             train_loss += loss.item()
             
-            # 反向传播和优化
+            # Backpropagation and optimization
             self.optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
             self.optimizer.step()
         
-        # 计算平均损失
+        # Compute average loss
         batch_count = len(self.train_dataloader)
         log = {'train_loss': train_loss / batch_count}
         
-        # 添加详细损失到日志
+        # Add detailed losses to the log
         for k, v in loss_details_sum.items():
-            if v > 0:  # 只记录有实际值的损失项
+            if v > 0:  # Only log losses that have non-zero values
                 log[f'train_{k}'] = v / batch_count
         
-        # 评估验证集
+        # Evaluate on the validation set
         self.model.eval()
         with torch.no_grad():
             val_gts, val_res = [], []
@@ -277,7 +277,7 @@ class Trainer(BaseTrainer):
                                     {i: [re] for i, re in enumerate(val_res)})
             log.update(**{'val_' + k: v for k, v in val_met.items()})
 
-        # 评估测试集
+        # Evaluate on the test set
         self.model.eval()
         with torch.no_grad():
             test_gts, test_res = [], []
@@ -300,8 +300,8 @@ class Trainer(BaseTrainer):
         return log
 
     def _test_epoch(self, epoch):
-        log = {}  # ← 一定要先初始化
-        # 评估测试集
+        log = {}  # Must be initialized first
+        # Evaluate on the test set
         self.model.eval()
         with torch.no_grad():
             test_gts, test_res = [], []

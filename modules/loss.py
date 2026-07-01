@@ -21,47 +21,47 @@ def compute_loss(output, reports_ids, reports_masks,
                 visual_features=None, text_features=None, report_ids=None, 
                 alignment_module=None, alignment_weight=0.0):
     """
-    计算总的损失，包括语言模型损失和可选的对齐损失
-    
+    Compute the total loss, including the language model loss and an optional alignment loss.
+
     Args:
-        output: 模型的输出 (用于语言模型损失)
-        reports_ids: 报告ID (用于语言模型损失)
-        reports_masks: 报告掩码 (用于语言模型损失)
-        visual_features: 可选，视觉特征 (用于对齐损失)
-        text_features: 可选，文本特征 (用于对齐损失)
-        report_ids: 可选，当前批次的报告ID列表 (用于对齐损失)
-        alignment_module: 可选，多级别对齐模块实例
-        alignment_weight: 对齐损失的权重系数，默认为0.0 (不使用对齐损失)
-        
+        output: model output (used for language model loss)
+        reports_ids: report IDs (used for language model loss)
+        reports_masks: report masks (used for language model loss)
+        visual_features: optional, visual features (used for alignment loss)
+        text_features: optional, text features (used for alignment loss)
+        report_ids: optional, list of report IDs in the current batch (used for alignment loss)
+        alignment_module: optional, MultiLevelAlignmentModule instance
+        alignment_weight: weight coefficient for alignment loss, default 0.0 (no alignment loss)
+
     Returns:
-        torch.Tensor: 总损失
-        dict: 包含各种损失的详细信息 (如果有对齐损失)
+        torch.Tensor: total loss
+        dict: detailed breakdown of individual losses (when alignment loss is used)
     """
-    # 计算语言模型损失
+    # Compute the language model loss
     criterion = LanguageModelCriterion()
     lm_loss = criterion(output, reports_ids[:, 1:], reports_masks[:, 1:]).mean()
     
-    # 初始化损失详情字典
+    # Initialize the loss details dictionary
     loss_details = {'lm_loss': lm_loss.item()}
     
-    # 如果提供了必要组件，计算对齐损失
+    # Compute alignment loss if all required components are provided
     if (visual_features is not None and text_features is not None and 
         report_ids is not None and alignment_module is not None and 
         alignment_weight > 0):
         
-        # 计算对齐损失
+        # Compute alignment loss
         alignment_loss, align_details = alignment_module(
             visual_features, text_features, report_ids)
         
-        # 合并损失
+        # Combine losses
         total_loss = lm_loss + alignment_weight * alignment_loss
         
-        # 更新损失详情
+        # Update loss details
         loss_details.update(align_details)
         loss_details['alignment_loss'] = alignment_loss.item()
         loss_details['total_loss'] = total_loss.item()
         
         return total_loss, loss_details
     
-    # 如果没有对齐损失，只返回语言模型损失
+    # No alignment loss: return only the language model loss
     return lm_loss, loss_details

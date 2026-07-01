@@ -20,23 +20,23 @@ class OT_Attn_assem(nn.Module):
 
     def OT(self, weight1, weight2):
         """
-        计算两组特征之间的最优传输
-        
+        Compute optimal transport between two sets of features.
+
         Args:
-            weight1 : (N, D) 视觉特征
-            weight2 : (M, D) 文本特征
-        
+            weight1 : (N, D) visual features
+            weight2 : (M, D) text features
+
         Return:
-            flow : (N, M) 流矩阵
-            dist : (1, ) 距离值
+            flow : (N, M) transport flow matrix
+            dist : (1, ) transport distance value
         """
-        # 确保输入是2D张量
+        # Ensure inputs are 2D tensors
         if weight1.dim() == 1:
-            weight1 = weight1.unsqueeze(0)  # 添加批次维度
+            weight1 = weight1.unsqueeze(0)  # Add batch dimension
         if weight2.dim() == 1:
-            weight2 = weight2.unsqueeze(0)  # 添加批次维度
-            
-        # 如果特征为空（某个维度为0），则返回零距离
+            weight2 = weight2.unsqueeze(0)  # Add batch dimension
+
+        # If features are empty (some dimension is 0), return zero distance
         if weight1.size(0) == 0 or weight2.size(0) == 0:
             return torch.zeros((1, 1), device=weight1.device), torch.tensor(0.0, device=weight1.device)
 
@@ -64,10 +64,10 @@ class OT_Attn_assem(nn.Module):
             
             flow = ot.unbalanced.sinkhorn_knopp_unbalanced(a=a, b=b, 
                                 M=M_cost.double(), reg=self.ot_reg, reg_m=self.ot_tau)
-            flow = flow.type(torch.FloatTensor).to(weight1.device)  # 修改为使用相同的设备
+            flow = flow.type(torch.FloatTensor).to(weight1.device)  # Cast to float and move to the same device
             
             dist = self.cost_map * flow  # (N, M)
-            dist = torch.sum(dist)  # (1,) float
+            dist = torch.sum(dist)  # (1,) scalar float
             return flow, dist
         
         else:
@@ -143,7 +143,7 @@ class OT_Attn_assem(nn.Module):
 
 class MultiLevelAlignmentModule(nn.Module):
     """
-    多级别特征对齐模块，包含可学习的投影层
+    Multi-level feature alignment module with learnable projection layers.
     """
     def __init__(self, visual_dims=(2048, 2048, 2048), 
                  text_dims=(768, 768, 768),
@@ -151,18 +151,18 @@ class MultiLevelAlignmentModule(nn.Module):
                  alpha=0.4, beta=0.2, gamma=0.4,
                  ot_impl='pot-uot-l2', ot_reg=0.1, ot_tau=0.5):
         """
-        初始化多级别特征对齐模块
-        
+        Initialize the multi-level feature alignment module.
+
         Args:
-            visual_dims: 视觉特征的维度元组 (低级维度, 中级维度, 高级维度)
-            text_dims: 文本特征的维度元组 (单词维度, 句子维度, 段落维度)
-            projection_dim: 投影后的共同维度
-            alpha: 低级别特征(visual-word)对齐损失权重
-            beta: 中级别特征(visual-sentence)对齐损失权重
-            gamma: 高级别特征(visual-paragraph)对齐损失权重
-            ot_impl: OT实现方法
-            ot_reg: OT正则化参数
-            ot_tau: UOT参数
+            visual_dims: tuple of visual feature dimensions (low-level dim, mid-level dim, high-level dim)
+            text_dims: tuple of text feature dimensions (word dim, sentence dim, paragraph dim)
+            projection_dim: shared projection dimension after projection
+            alpha: loss weight for low-level (visual-word) alignment
+            beta: loss weight for mid-level (visual-sentence) alignment
+            gamma: loss weight for high-level (visual-paragraph) alignment
+            ot_impl: OT implementation method
+            ot_reg: OT regularization parameter
+            ot_tau: UOT marginal relaxation parameter
         """
         super().__init__()
         
@@ -171,26 +171,26 @@ class MultiLevelAlignmentModule(nn.Module):
         self.beta = beta
         self.gamma = gamma
         
-        # 创建OT计算器
+        # Create OT calculator
         self.ot_calculator = OT_Attn_assem(impl=ot_impl, ot_reg=ot_reg, ot_tau=ot_tau)
-        
-        # 创建投影层 - 低级别 (word-level)
+
+        # Create projection layers - low-level (word-level)
         self.low_visual_projection = nn.Linear(visual_dims[0], projection_dim)
         self.word_projection = nn.Linear(text_dims[0], projection_dim)
-        
-        # 创建投影层 - 中级别 (sentence-level)
+
+        # Create projection layers - mid-level (sentence-level)
         self.mid_visual_projection = nn.Linear(visual_dims[1], projection_dim)
         self.sentence_projection = nn.Linear(text_dims[1], projection_dim)
-        
-        # 创建投影层 - 高级别 (paragraph-level)
+
+        # Create projection layers - high-level (paragraph-level)
         self.high_visual_projection = nn.Linear(visual_dims[2], projection_dim)
         self.paragraph_projection = nn.Linear(text_dims[2], projection_dim)
-        
-        # 初始化投影层权重
+
+        # Initialize projection layer weights
         self._init_projection_weights()
     
     def _init_projection_weights(self):
-        """初始化投影层权重"""
+        """Initialize projection layer weights."""
         for module in [self.low_visual_projection, self.word_projection,
                        self.mid_visual_projection, self.sentence_projection,
                        self.high_visual_projection, self.paragraph_projection]:
@@ -199,59 +199,59 @@ class MultiLevelAlignmentModule(nn.Module):
     
 
     def convert_dict_to_tensor(self, feature_dict, ids_list, device):
-        """将特征字典转换为tensor"""
+        """Convert a feature dictionary to a tensor."""
         features = []
         valid_ids = []
-        
-        # 首先收集所有有效的特征
+
+        # Collect all valid features first
         for id_key in ids_list:
             if id_key in feature_dict:
-                # 如果是numpy数组或列表，转换为tensor
+                # If numpy array or list, convert to tensor
                 if isinstance(feature_dict[id_key], (list, np.ndarray)):
-                    # 检查特征是否为空
+                    # Check that the feature is non-empty
                     if len(feature_dict[id_key]) > 0:
                         features.append(torch.tensor(feature_dict[id_key], dtype=torch.float).to(device))
                         valid_ids.append(id_key)
-                # 如果已经是tensor，确保在正确设备上
+                # If already a tensor, ensure it is on the correct device
                 elif isinstance(feature_dict[id_key], torch.Tensor):
-                    # 检查特征是否为空
+                    # Check that the feature is non-empty
                     if feature_dict[id_key].numel() > 0:
                         features.append(feature_dict[id_key].to(device))
                         valid_ids.append(id_key)
-        
-        # 如果没有收集到任何有效特征，返回None
+
+        # If no valid features were collected, return None
         if not features:
             return None
-            
-        # 检查所有特征的维度是否相同
+
+        # Check that all features share the same last dimension
         feat_dim = features[0].size(-1)
         for i, feat in enumerate(features):
             if feat.size(-1) != feat_dim:
-                print(f"警告: 特征维度不匹配! ID {valid_ids[i]} 的维度是 {feat.size(-1)}, 应该是 {feat_dim}")
-                # 调整维度 (截断或填充)
+                print(f"Warning: feature dimension mismatch! ID {valid_ids[i]} has dim {feat.size(-1)}, expected {feat_dim}")
+                # Adjust dimension (truncate or pad)
                 if feat.size(-1) > feat_dim:
                     features[i] = feat[..., :feat_dim]
                 else:
                     pad_size = feat_dim - feat.size(-1)
                     features[i] = torch.cat([feat, torch.zeros((*feat.shape[:-1], pad_size), device=device)], dim=-1)
-        
-        # 尝试堆叠特征，如果维度不同，则进行处理
+
+        # Attempt to stack features; handle mismatched shapes if necessary
         try:
             return torch.stack(features)
         except RuntimeError as e:
-            print(f"堆叠特征时出错: {e}")
-            print(f"特征形状: {[f.shape for f in features]}")
-            
-            # 尝试调整所有特征为相同形状
+            print(f"Error stacking features: {e}")
+            print(f"Feature shapes: {[f.shape for f in features]}")
+
+            # Attempt to pad all features to the same shape
             max_dims = [max(f.size(i) for f in features) for i in range(features[0].dim())]
             adjusted_features = []
-            
+
             for feat in features:
                 if feat.dim() != len(max_dims):
-                    print(f"警告: 特征的维度数量不同 {feat.dim()} vs {len(max_dims)}")
+                    print(f"Warning: feature has different number of dimensions {feat.dim()} vs {len(max_dims)}")
                     continue
-                    
-                # 调整每个维度
+
+                # Adjust each dimension
                 current_shape = list(feat.shape)
                 needs_padding = any(current_shape[i] != max_dims[i] for i in range(len(current_shape)))
                 
@@ -271,14 +271,14 @@ class MultiLevelAlignmentModule(nn.Module):
                 return torch.stack(adjusted_features)
             return None
     # def convert_dict_to_tensor(self, feature_dict, ids_list, device):
-    #     """将特征字典转换为tensor"""
+    #     """Convert a feature dictionary to a tensor."""
     #     features = []
     #     for id_key in ids_list:
     #         if id_key in feature_dict:
-    #             # 如果是numpy数组，转换为tensor
+    #             # If numpy array, convert to tensor
     #             if isinstance(feature_dict[id_key], (list, np.ndarray)):
     #                 features.append(torch.tensor(feature_dict[id_key], dtype=torch.float).to(device))
-    #             # 如果已经是tensor，确保在正确设备上
+    #             # If already a tensor, ensure it is on the correct device
     #             elif isinstance(feature_dict[id_key], torch.Tensor):
     #                 features.append(feature_dict[id_key].to(device))
         
@@ -289,187 +289,188 @@ class MultiLevelAlignmentModule(nn.Module):
     
     # 
     def calculate_ot_distance(self, visual_features, text_features):
-        """计算投影后的特征之间的OT距离"""
-        # 检查特征是否为空
+        """Compute the OT distance between projected features."""
+        # Check if features are empty
         if text_features is None or visual_features.size(0) == 0:
             return torch.tensor(0.0, device=visual_features.device)
-            
-        # 检查文本特征的维度和大小
+
+        # Check text feature dimensionality and size
         if text_features.dim() == 0 or text_features.size(0) == 0:
             return torch.tensor(0.0, device=visual_features.device)
-        
-        # 确保特征具有正确的维度
+
+        # Ensure features have the correct number of dimensions
         if visual_features.dim() == 1:
             visual_features = visual_features.unsqueeze(0)
         if text_features.dim() == 1:
             text_features = text_features.unsqueeze(0)
-        
+
         try:
             _, dist = self.ot_calculator(visual_features.unsqueeze(1), text_features.unsqueeze(1))
-            # 归一化距离
+            # Normalize the distance
             normalized_dist = dist / (visual_features.size(0) * text_features.size(0))
             return normalized_dist
         except RuntimeError as e:
-            print(f"计算OT距离时出错: {e}")
-            print(f"视觉特征形状: {visual_features.shape}, 文本特征形状: {text_features.shape}")
+            print(f"Error computing OT distance: {e}")
+            print(f"Visual feature shape: {visual_features.shape}, text feature shape: {text_features.shape}")
             return torch.tensor(0.0, device=visual_features.device)
     
     def compute_low_level_alignment(self, low_visual_features, word_features, report_id):
-        """计算低级别(视觉低级特征与单词特征)对齐"""
+        """Compute low-level alignment between visual low-level features and word features."""
         device = low_visual_features.device
-        
-        # 获取与报告相关的单词ID
-        word_ids = [f"{report_id}_w{j}" for j in range(100)]  # 假设最多100个单词
+
+        # Retrieve word IDs associated with the report
+        word_ids = [f"{report_id}_w{j}" for j in range(100)]  # Assume at most 100 words
         word_tensor = self.convert_dict_to_tensor(word_features, word_ids, device)
-        
+
         if word_tensor is not None and word_tensor.size(0) > 0:
-            # 投影特征到共同空间
+            # Project features into the shared space
             projected_visual = self.low_visual_projection(low_visual_features)
             projected_text = self.word_projection(word_tensor)
-            
-            # 计算距离
+
+            # Compute distance
             low_word_loss = self.calculate_ot_distance(projected_visual, projected_text)
         else:
             low_word_loss = torch.tensor(0.0, device=device)
-        
+
         return low_word_loss
     
     def compute_mid_level_alignment(self, mid_visual_features, sentence_features, report_id):
-        """计算中级别(视觉中级特征与句子特征)对齐"""
+        """Compute mid-level alignment between visual mid-level features and sentence features."""
         device = mid_visual_features.device
-        
-        # 获取与报告相关的句子ID
-        sentence_ids = [f"{report_id}_s{j}" for j in range(20)]  # 假设最多20个句子
+
+        # Retrieve sentence IDs associated with the report
+        sentence_ids = [f"{report_id}_s{j}" for j in range(20)]  # Assume at most 20 sentences
         sentence_tensor = self.convert_dict_to_tensor(sentence_features, sentence_ids, device)
-        
+
         if sentence_tensor is not None and sentence_tensor.size(0) > 0:
-            # 投影特征到共同空间
+            # Project features into the shared space
             projected_visual = self.mid_visual_projection(mid_visual_features)
             projected_text = self.sentence_projection(sentence_tensor)
-            
-            # 计算距离
+
+            # Compute distance
             mid_sentence_loss = self.calculate_ot_distance(projected_visual, projected_text)
         else:
             mid_sentence_loss = torch.tensor(0.0, device=device)
-        
+
         return mid_sentence_loss
     
     def compute_high_level_alignment(self, high_visual_features, paragraph_features, report_id):
-        """计算高级别(视觉高级特征与段落特征)对齐"""
+        """Compute high-level alignment between visual high-level features and paragraph features."""
         device = high_visual_features.device
-        
-        # 获取段落特征
+
+        # Retrieve the paragraph feature
         if report_id in paragraph_features:
-            # 转换段落特征为tensor
+            # Convert paragraph feature to tensor
             if isinstance(paragraph_features[report_id], (list, np.ndarray)):
                 paragraph_tensor = torch.tensor(paragraph_features[report_id], dtype=torch.float).to(device).unsqueeze(0)
             else:
                 paragraph_tensor = paragraph_features[report_id].to(device).unsqueeze(0)
-            
-            # 如果特征是空的，返回零损失
+
+            # If the feature is empty, return zero loss
             if paragraph_tensor.numel() == 0:
                 return torch.tensor(0.0, device=device)
-                
-            # 复制段落特征以匹配视觉特征的数量
+
+            # Repeat paragraph feature to match the number of visual features
             paragraph_tensor = paragraph_tensor.repeat(high_visual_features.size(0), 1)
-            
-            # 投影特征到共同空间
+
+            # Project features into the shared space
             projected_visual = self.high_visual_projection(high_visual_features)
             projected_text = self.paragraph_projection(paragraph_tensor)
-            
-            # 计算距离
+
+            # Compute distance
             high_paragraph_loss = self.calculate_ot_distance(projected_visual, projected_text)
         else:
             high_paragraph_loss = torch.tensor(0.0, device=device)
-        
+
         return high_paragraph_loss
     
     # def compute_low_level_alignment(self, low_visual_features, word_features, report_id):
-    #     """计算低级别(视觉低级特征与单词特征)对齐"""
+    #     """Compute low-level alignment between visual low-level features and word features."""
     #     device = low_visual_features.device
-        
-    #     # 获取与报告相关的单词ID
-    #     word_ids = [f"{report_id}_w{j}" for j in range(100)]  # 假设最多100个单词
+
+    #     # Retrieve word IDs associated with the report
+    #     word_ids = [f"{report_id}_w{j}" for j in range(100)]  # Assume at most 100 words
     #     word_tensor = self.convert_dict_to_tensor(word_features, word_ids, device)
-        
+
     #     if word_tensor is not None:
-    #         # 投影特征到共同空间
+    #         # Project features into the shared space
     #         projected_visual = self.low_visual_projection(low_visual_features)
     #         projected_text = self.word_projection(word_tensor)
-            
-    #         # 计算距离
+
+    #         # Compute distance
     #         low_word_loss = self.calculate_ot_distance(projected_visual, projected_text)
     #     else:
     #         low_word_loss = torch.tensor(0.0, device=device)
-        
+
     #     return low_word_loss
     
     # def compute_mid_level_alignment(self, mid_visual_features, sentence_features, report_id):
-    #     """计算中级别(视觉中级特征与句子特征)对齐"""
+    #     """Compute mid-level alignment between visual mid-level features and sentence features."""
     #     device = mid_visual_features.device
-        
-    #     # 获取与报告相关的句子ID
-    #     sentence_ids = [f"{report_id}_s{j}" for j in range(20)]  # 假设最多20个句子
+
+    #     # Retrieve sentence IDs associated with the report
+    #     sentence_ids = [f"{report_id}_s{j}" for j in range(20)]  # Assume at most 20 sentences
     #     sentence_tensor = self.convert_dict_to_tensor(sentence_features, sentence_ids, device)
-        
+
     #     if sentence_tensor is not None:
-    #         # 投影特征到共同空间
+    #         # Project features into the shared space
     #         projected_visual = self.mid_visual_projection(mid_visual_features) # (49, 512)
     #         projected_text = self.sentence_projection(sentence_tensor) #    (49, 512)
-            
-    #         # 计算距离
+
+    #         # Compute distance
     #         mid_sentence_loss = self.calculate_ot_distance(projected_visual, projected_text)
     #     else:
     #         mid_sentence_loss = torch.tensor(0.0, device=device)
-        
+
     #     return mid_sentence_loss
     
     # def compute_high_level_alignment(self, high_visual_features, paragraph_features, report_id):
-    #     """计算高级别(视觉高级特征与段落特征)对齐"""
+    #     """Compute high-level alignment between visual high-level features and paragraph features."""
     #     device = high_visual_features.device
-        
-    #     # 获取段落特征
+
+    #     # Retrieve the paragraph feature
     #     if report_id in paragraph_features:
-    #         # 转换段落特征为tensor
+    #         # Convert paragraph feature to tensor
     #         if isinstance(paragraph_features[report_id], (list, np.ndarray)):
     #             paragraph_tensor = torch.tensor(paragraph_features[report_id], dtype=torch.float).to(device).unsqueeze(0)
     #         else:
     #             paragraph_tensor = paragraph_features[report_id].to(device).unsqueeze(0)
-            
-    #         # 复制段落特征以匹配视觉特征的数量
+
+    #         # Repeat paragraph feature to match the number of visual features
     #         paragraph_tensor = paragraph_tensor.repeat(high_visual_features.size(0), 1)
-            
-    #         # 投影特征到共同空间
+
+    #         # Project features into the shared space
     #         projected_visual = self.high_visual_projection(high_visual_features)
     #         projected_text = self.paragraph_projection(paragraph_tensor)
-            
-    #         # 计算距离
+
+    #         # Compute distance
     #         high_paragraph_loss = self.calculate_ot_distance(projected_visual, projected_text)
     #     else:
     #         high_paragraph_loss = torch.tensor(0.0, device=device)
-        
+
     #     return high_paragraph_loss
     
     # 
     def forward(self, visual_features, text_features, report_ids):
         """
-        前向传播计算多级别特征对齐损失
-        
+        Forward pass to compute multi-level feature alignment loss.
+
         Args:
-            visual_features: 视觉特征字典，由VisualFeatureExtractor提取
-                包含 'low_level_feats', 'mid_level_feats', 'high_level_feats', 'highest_level_feats', 'fused_feats'
-            text_features: 文本特征元组 (paragraph_features, sentence_features, word_features)
-                每个元素都是字典，键为ID，值为numpy数组或tensor
-            report_ids: 当前批次的报告ID列表
-            
+            visual_features: visual feature dict extracted by VisualFeatureExtractor,
+                containing 'low_level_feats', 'mid_level_feats', 'high_level_feats',
+                'highest_level_feats', 'fused_feats'
+            text_features: tuple of text features (paragraph_features, sentence_features, word_features),
+                each element is a dict mapping IDs to numpy arrays or tensors
+            report_ids: list of report IDs in the current batch
+
         Returns:
-            torch.Tensor: 总的对齐损失
-            dict: 包含各级别损失的字典，用于记录
+            torch.Tensor: total alignment loss
+            dict: per-level loss values for logging
         """
-        # 解包文本特征
+        # Unpack text features
         paragraph_features, sentence_features, word_features = text_features
-        
-        # 检查文本特征是否为空
+
+        # Check if any text feature dict is empty
         if not paragraph_features or not sentence_features or not word_features:
             device = next(self.parameters()).device
             return torch.tensor(0.0, device=device), {
@@ -478,8 +479,8 @@ class MultiLevelAlignmentModule(nn.Module):
                 'high_paragraph_loss': 0.0,
                 'total_loss': 0.0
             }
-        
-        # 准备报告相关的ID列表
+
+        # Prepare ID-related lists for the batch
         batch_size = len(report_ids)
         all_losses = {
             'low_word_loss': 0.0,
@@ -487,18 +488,18 @@ class MultiLevelAlignmentModule(nn.Module):
             'high_paragraph_loss': 0.0,
             'total_loss': 0.0
         }
-        
+
         total_loss = 0
-        
-        # 对批次中的每个报告计算对齐损失
+
+        # Compute alignment loss for each report in the batch
         for i, report_id in enumerate(report_ids):
             try:
-                # 检查当前索引是否在视觉特征的范围内
+                # Check that the current index is within bounds of the visual features
                 if i >= visual_features['low_level_feats'].size(0):
-                    print(f"警告: 索引 {i} 超出视觉特征的范围 {visual_features['low_level_feats'].size(0)}")
+                    print(f"Warning: index {i} exceeds visual feature range {visual_features['low_level_feats'].size(0)}")
                     continue
-                
-                # 1. 低级别对齐：visual low-level features 与 word-level features
+
+                # 1. Low-level alignment: visual low-level features vs. word-level features
                 if 'low_level_feats' in visual_features:
                     low_visual_features = visual_features['low_level_feats'][i]  # (49, 2048)
                     low_word_loss = self.compute_low_level_alignment(
@@ -506,8 +507,8 @@ class MultiLevelAlignmentModule(nn.Module):
                 else:
                     device = next(self.parameters()).device
                     low_word_loss = torch.tensor(0.0, device=device)
-                
-                # 2. 中级别对齐：visual mid-level features 与 sentence-level features
+
+                # 2. Mid-level alignment: visual mid-level features vs. sentence-level features
                 if 'mid_level_feats' in visual_features:
                     mid_visual_features = visual_features['mid_level_feats'][i]  # (49, 2048)
                     mid_sentence_loss = self.compute_mid_level_alignment(
@@ -515,8 +516,8 @@ class MultiLevelAlignmentModule(nn.Module):
                 else:
                     device = next(self.parameters()).device
                     mid_sentence_loss = torch.tensor(0.0, device=device)
-                
-                # 3. 高级别对齐：visual high-level features 与 paragraph-level features
+
+                # 3. High-level alignment: visual high-level features vs. paragraph-level features
                 if 'highest_level_feats' in visual_features:
                     high_visual_features = visual_features['highest_level_feats'][i]  # (49, 2048)
                     high_paragraph_loss = self.compute_high_level_alignment(
@@ -524,32 +525,32 @@ class MultiLevelAlignmentModule(nn.Module):
                 else:
                     device = next(self.parameters()).device
                     high_paragraph_loss = torch.tensor(0.0, device=device)
-                
-                # 加权计算总损失
-                report_loss = (self.alpha * low_word_loss + 
-                              self.beta * mid_sentence_loss + 
+
+                # Compute weighted total loss
+                report_loss = (self.alpha * low_word_loss +
+                              self.beta * mid_sentence_loss +
                               self.gamma * high_paragraph_loss)
-                
+
                 total_loss += report_loss
-                
-                # 累加到所有损失字典中
+
+                # Accumulate into the loss dict
                 all_losses['low_word_loss'] += low_word_loss.item()
                 all_losses['mid_sentence_loss'] += mid_sentence_loss.item()
                 all_losses['high_paragraph_loss'] += high_paragraph_loss.item()
-            
+
             except Exception as e:
-                print(f"计算报告 {report_id} 的对齐损失时出错: {e}")
+                print(f"Error computing alignment loss for report {report_id}: {e}")
                 import traceback
                 traceback.print_exc()
                 continue
-        
-        # 计算平均损失
+
+        # Compute average loss
         if batch_size > 0:
             total_loss = total_loss / batch_size
             all_losses['low_word_loss'] /= batch_size
             all_losses['mid_sentence_loss'] /= batch_size
             all_losses['high_paragraph_loss'] /= batch_size
             all_losses['total_loss'] = total_loss.item()
-        
+
         return total_loss, all_losses
 
