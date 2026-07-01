@@ -24,12 +24,12 @@ A working **Java runtime** is required by `pycocoevalcap` (METEOR and the Stanfo
 
 ## Datasets
 
-We use two public chest X-ray datasets:
+We use two public chest X-ray datasets. Please download them from their official sources:
 
-- **IU X-Ray** — download and place under `data/iu_xray/` (`images/` + `annotation.json`).
-- **MIMIC-CXR** — download and place under `data/mimic_cxr/` (`images/` + `mimic-annotation.json`).
+- **IU X-Ray** (Indiana University Chest X-ray Collection, hosted by NLM Open-i): https://openi.nlm.nih.gov/
+- **MIMIC-CXR**: https://physionet.org/content/mimic-cxr/2.1.0/
 
-Both follow the R2Gen data split. Only the *findings* section is used as the target text.
+Both follow the R2Gen data split, and only the *findings* section is used as the target text.
 
 ## Pipeline
 
